@@ -1,4 +1,4 @@
-// -------------------------------------------------------------
+যে// -------------------------------------------------------------
 // ১. পাসওয়ার্ড ও ইউজারনেম ইনপুট নেওয়া
 // -------------------------------------------------------------
 let enterPassword = "";
@@ -52,7 +52,7 @@ function createDemoJWT(username) {
 }
 
 const token = createDemoJWT(USERNAME);
-const RENDER_DOMAIN = "wss://friend-confarence.onrender.com"; // আপনার Render Domain
+const RENDER_DOMAIN = "friend-confarence.onrender.com"; // আপনার Render Domain
 const serverUrl = `wss://${RENDER_DOMAIN}?pass=${encodeURIComponent(enterPassword)}&token=${token}`;
 
 const socket = new WebSocket(serverUrl);
