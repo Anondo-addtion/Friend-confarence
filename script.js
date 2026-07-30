@@ -61,12 +61,11 @@ let pingInterval = null;
 function connectWebSocket() {
   socket = new WebSocket(serverUrl);
 
-  // 🚀 কানেকশন সফল হলে
+  // 🚀 কানেকশন ওপেন হলে সাথে সাথেই চ্যাট খুলবেন না!
   socket.addEventListener('open', () => {
-    if (statusContainer) statusContainer.style.display = 'none';
-    if (chatCard) chatCard.style.display = 'block';
+    console.log("Connected to server, verifying password...");
 
-    // 🔄 Ping পাঠাবে প্রতি ২৫ সেকেন্ড পর পর (Keep-Alive)
+    // 🔄 Ping মেকানিজম চালু
     if (pingInterval) clearInterval(pingInterval);
     pingInterval = setInterval(() => {
       if (socket && socket.readyState === WebSocket.OPEN) {
@@ -75,32 +74,45 @@ function connectWebSocket() {
     }, 25000);
   });
 
-  // 📩 ইনকামিং মেসেজ রিসিভ করা
-  socket.addEventListener('message', handleIncomingMessage);
+  // 📩 ইনকামিং মেসেজ রিসিভ
+  socket.addEventListener('message', (event) => {
+    // পাসওয়ার্ড সঠিক হলে এবং প্রথম মেসেজ (Role Assign / System Message) আসলেই কেবল UI আপডেট হবে
+    if (statusContainer) statusContainer.style.display = 'none';
+    if (chatCard) chatCard.style.display = 'block';
 
-  // ❌ কানেকশন বন্ধ বা ডিসকানেক্ট হলে Auto-Reconnect
+    handleIncomingMessage(event);
+  });
+
+  // ❌ পাসওয়ার্ড ভুল হলে বা ডিসকানেক্ট হলে
   socket.addEventListener('close', (e) => {
     if (pingInterval) clearInterval(pingInterval);
 
+    // পাসওয়ার্ড ভুল হলে (Code 4003)
     if (e.code === 4003) {
       if (chatCard) chatCard.style.display = 'none';
       if (statusContainer) statusContainer.style.display = 'block';
-      statusText.innerText = "❌ wrong password!";
+      statusText.innerText = "❌ Wrong Password!";
       statusText.style.color = "#dc3545";
-      statusSubText.innerText = "INCORRECT password. Reload page and try again!";
-    } else {
-      if (chatCard) chatCard.style.display = 'none';
-      if (statusContainer) statusContainer.style.display = 'block';
-      statusText.innerText = "⚠️ server disconnected!";
-      statusText.style.color = "#ffc107";
-      statusSubText.innerText = "Reconnecting in 3 seconds... Check internet connection.";
+      statusSubText.innerText = "INCORRECT password. Reload page and enter correct password!";
+      
+      // পাসওয়ার্ড ভুল হলে কোনো Auto-Reconnect চলবে না
+      return; 
+    } 
 
-      // ৩ সেকেন্ড পর অটোমেটিক রিকানেক্ট চেষ্টা
-      setTimeout(() => {
-        connectWebSocket();
-      }, 3000);
-    }
+    // অন্য কোনো কারণে ডিসকানেক্ট হলে
+    if (chatCard) chatCard.style.display = 'none';
+    if (statusContainer) statusContainer.style.display = 'block';
+    statusText.innerText = "⚠️ Server Disconnected!";
+    statusText.style.color = "#ffc107";
+    statusSubText.innerText = "Reconnecting in 3 seconds...";
+
+    setTimeout(() => {
+      connectWebSocket();
+    }, 3000);
   });
+      }
+        
+
 
   // 🚨 নেটওয়ার্ক এরর
   socket.addEventListener('error', (err) => {
