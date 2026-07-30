@@ -37,7 +37,7 @@
 
   // 🚀 Render-এর লাইভ WebSocket URL (এখানে আপনার আসল URL বসান)
   // ⚠️ মনে রাখবেন: http:// বা https:// এর জায়গায় wss:// ব্যবহার করতে হবে
-  const RENDER_DOMAIN = "wss://chit-chat-qmva.onrender.com"; 
+  const RENDER_DOMAIN = "wss://friend-confarence.onrender.com"; 
   const serverUrl = `wss://${RENDER_DOMAIN}?pass=${encodeURIComponent(enterPassword)}&token=${token}`; 
   
   const socket = new WebSocket(serverUrl);
