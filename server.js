@@ -34,16 +34,14 @@ wss.on('connection', (ws, req) => {
     return;
   }
 
-  // 🔑 ২. টোকেন ভ্যালিডেশন
-  try {
-    const decoded = jwt.verify(token, SECRET_KEY);
-    ws.username = decoded.username;
-  } catch (err) {
-    ws.close(4001, 'Unauthorized');
-    return;
-  }
+  // টোকেন ভেরিফাইয়ের বদলে:
+const username = urlParams.get('username');
 
-  ws.id = Date.now().toString() + Math.random().toString(36).substr(2, 5);
+if (!username) {
+  ws.close(4001, 'Username Required');
+  return;
+}
+ws.username = username;
   
   // প্রথম ইউজারকে Host বানানো
   const isHost = connectedUsers.length === 0;
