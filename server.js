@@ -34,14 +34,15 @@ wss.on('connection', (ws, req) => {
     return;
   }
 
-  // টোকেন ভেরিফাইয়ের বদলে:
-const username = urlParams.get('username');
+  // 🔑 ২. টোকেন ডিকোড বা হ্যান্ডলিং
+  try {
+    const decoded = jwt.decode(token);
+    ws.username = (decoded && decoded.username) ? decoded.username : 'Anonymous';
+  } catch (err) {
+    ws.username = 'User_' + Math.floor(Math.random() * 1000);
+  }
 
-if (!username) {
-  ws.close(4001, 'Username Required');
-  return;
-}
-ws.username = username;
+  ws.id = Date.now().toString() + Math.random().toString(36).substr(2, 5);
   
   // প্রথম ইউজারকে Host বানানো
   const isHost = connectedUsers.length === 0;
@@ -69,6 +70,14 @@ ws.username = username;
     try {
       const msgString = message.toString();
       
+      // 🔄 Keep-Alive Ping-Pong হ্যান্ডলিং
+      if (msgString.includes('"type":"ping"')) {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'pong' }));
+        }
+        return;
+      }
+
       // সিস্টেমে ফাইল পারমিশন রিকোয়েস্ট হ্যান্ডলিং
       if (msgString.startsWith('{')) {
         const parsedJSON = JSON.parse(msgString);
@@ -138,4 +147,4 @@ ws.username = username;
     }
   });
 });
-    
+  
