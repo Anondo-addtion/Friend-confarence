@@ -20,7 +20,7 @@ while (!USERNAME || USERNAME.trim() === "") {
 // SHARED SECRET & CLOUDINARY CONFIG
 const SHARED_SECRET_PASSWORD = enterPassword; 
 const CLOUD_NAME = "bfq3wa5j";       // আপনার Cloudinary Name বসান
-const UPLOAD_PRESET = "ml_defult"; // আপনার Cloudinary Preset বসান
+const UPLOAD_PRESET = "ml_default"; // আপনার Cloudinary Preset বসান
 
 let isHost = false;
 
