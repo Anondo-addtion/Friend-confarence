@@ -28,11 +28,13 @@ wss.on('connection', (ws, req) => {
   const password = urlParams.get('pass');
   const token = urlParams.get('token');
 
-  // 🔒 ১. পাসওয়ার্ড ভ্যালিডেশন
-  if (!password || password !== CHAT_PASSWORD) {
+   // 🔒 ১. পাসওয়ার্ড ভ্যালিডেশন
+  // CHAT_PASSWORD সেট করা না থাকলে অথবা টাইপ করা পাসওয়ার্ড না মিললে ব্লক করবে
+  if (!CHAT_PASSWORD || !password || password.trim() !== CHAT_PASSWORD.trim()) {
     ws.close(4003, 'Invalid Password');
     return;
   }
+  
 
   // 🔑 ২. টোকেন ডিকোড বা হ্যান্ডলিং
   try {
