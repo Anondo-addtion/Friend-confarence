@@ -5,7 +5,7 @@ let enterPassword = "";
 while (!enterPassword || enterPassword.trim() === "") {
   enterPassword = prompt("🔑 PASSWORD:");
   if (enterPassword === null) {
-    alert("password REQUARIED!");
+    alert("password REQUIRED!");
   }
 }
 
@@ -19,8 +19,8 @@ while (!USERNAME || USERNAME.trim() === "") {
 
 // SHARED SECRET & CLOUDINARY CONFIG
 const SHARED_SECRET_PASSWORD = enterPassword; 
-const CLOUD_NAME = "bfq3wa5j";       // আপনার Cloudinary Name বসান
-const UPLOAD_PRESET = "ml_default"; // আপনার Cloudinary Preset বসান
+const CLOUD_NAME = "bfq3wa5j";       // আপনার Cloudinary Name
+const UPLOAD_PRESET = "ml_defult"; // আপনার Cloudinary Preset
 
 let isHost = false;
 
@@ -43,7 +43,7 @@ let pendingFileToUpload = null;
 const MAX_DIRECT_SIZE = 10 * 1024 * 1024; 
 
 // -------------------------------------------------------------
-// ৩. WebSocket Connection Setup
+// ৩. WebSocket Connection Setup (Auto-Reconnect & Keep-Alive সহ)
 // -------------------------------------------------------------
 function createDemoJWT(username) {
   const header = btoa(JSON.stringify({ alg: "HS256", typ: "JWT" }));
@@ -55,45 +55,64 @@ const token = createDemoJWT(USERNAME);
 const RENDER_DOMAIN = "friend-confarence.onrender.com"; // আপনার Render Domain
 const serverUrl = `wss://${RENDER_DOMAIN}?pass=${encodeURIComponent(enterPassword)}&token=${token}`;
 
-const socket = new WebSocket(serverUrl);
+let socket = null;
+let pingInterval = null;
+
+function connectWebSocket() {
+  socket = new WebSocket(serverUrl);
+
+  // 🚀 কানেকশন সফল হলে
+  socket.addEventListener('open', () => {
+    if (statusContainer) statusContainer.style.display = 'none';
+    if (chatCard) chatCard.style.display = 'block';
+
+    // 🔄 Ping পাঠাবে প্রতি ২৫ সেকেন্ড পর পর (Keep-Alive)
+    if (pingInterval) clearInterval(pingInterval);
+    pingInterval = setInterval(() => {
+      if (socket && socket.readyState === WebSocket.OPEN) {
+        socket.send(JSON.stringify({ type: 'ping' }));
+      }
+    }, 25000);
+  });
+
+  // 📩 ইনকামিং মেসেজ রিসিভ করা
+  socket.addEventListener('message', handleIncomingMessage);
+
+  // ❌ কানেকশন বন্ধ বা ডিসকানেক্ট হলে Auto-Reconnect
+  socket.addEventListener('close', (e) => {
+    if (pingInterval) clearInterval(pingInterval);
+
+    if (e.code === 4003) {
+      if (chatCard) chatCard.style.display = 'none';
+      if (statusContainer) statusContainer.style.display = 'block';
+      statusText.innerText = "❌ wrong password!";
+      statusText.style.color = "#dc3545";
+      statusSubText.innerText = "INCORRECT password. Reload page and try again!";
+    } else {
+      if (chatCard) chatCard.style.display = 'none';
+      if (statusContainer) statusContainer.style.display = 'block';
+      statusText.innerText = "⚠️ server disconnected!";
+      statusText.style.color = "#ffc107";
+      statusSubText.innerText = "Reconnecting in 3 seconds... Check internet connection.";
+
+      // ৩ সেকেন্ড পর অটোমেটিক রিকানেক্ট চেষ্টা
+      setTimeout(() => {
+        connectWebSocket();
+      }, 3000);
+    }
+  });
+
+  // 🚨 নেটওয়ার্ক এরর
+  socket.addEventListener('error', (err) => {
+    console.error("WebSocket Error:", err);
+  });
+}
+
+// প্রথমবার কানেক্ট করা
+connectWebSocket();
 
 // -------------------------------------------------------------
-// ৪. WebSocket Event Handlers (কানেকশন টেস্ট ও এরর হ্যান্ডলিং)
-// -------------------------------------------------------------
-
-// 🚀 কানেকশন সফল হলে
-socket.addEventListener('open', () => {
-  if (statusContainer) statusContainer.style.display = 'none';
-  if (chatCard) chatCard.style.display = 'block';
-});
-
-// ❌ কানেকশন বন্ধ বা পাসওয়ার্ড ভুল হলে
-socket.addEventListener('close', (e) => {
-  if (chatCard) chatCard.style.display = 'none';
-  if (statusContainer) statusContainer.style.display = 'block';
-
-  if (e.code === 4003) {
-    statusText.innerText = "❌ wrong password!";
-    statusText.style.color = "#dc3545";
-    statusSubText.innerText = "INCORRECT password.Load page and try again!";
-  } else {
-    statusText.innerText = "⚠️ server disconnected!";
-    statusText.style.color = "#ffc107";
-    statusSubText.innerText = "check internet connection।";
-  }
-});
-
-// 🚨 নেটওয়ার্ক এরর
-socket.addEventListener('error', (err) => {
-  console.error("WebSocket Error:", err);
-  if (statusText) {
-    statusText.innerText = "❌ connection error!";
-    statusText.style.color = "#dc3545";
-  }
-});
-
-// -------------------------------------------------------------
-// ৫. Encryption Logic (AES-GCM)
+// ৪. Encryption Logic (AES-GCM)
 // -------------------------------------------------------------
 let cryptoKey;
 async function initCrypto() {
@@ -136,7 +155,7 @@ async function decryptData(cipherJson) {
 }
 
 // -------------------------------------------------------------
-// ৬. Helper Functions & Event Listeners
+// ৫. Helper Functions & Event Listeners
 // -------------------------------------------------------------
 async function uploadToCloud(file) {
   const formData = new FormData();
@@ -162,7 +181,9 @@ function appendChat(sender, htmlContent) {
 async function sendEncryptedPayload(type, rawData) {
   const rawPayload = JSON.stringify({ type, data: rawData });
   const encryptedString = await encryptData(rawPayload);
-  socket.send(encryptedString);
+  if (socket && socket.readyState === WebSocket.OPEN) {
+    socket.send(encryptedString);
+  }
 }
 
 sendBtn.addEventListener('click', async () => {
@@ -191,11 +212,13 @@ fileInput.addEventListener('change', async (e) => {
     pendingFileToUpload = file;
     alert(`ফাইল সাইজ ${(file.size / (1024 * 1024)).toFixed(1)} MB। হোস্টের অনুমতি চাওয়া হচ্ছে...`);
     
-    socket.send(JSON.stringify({
-      type: 'request_permission',
-      fileName: file.name,
-      fileSize: (file.size / (1024 * 1024)).toFixed(1) + ' MB'
-    }));
+    if (socket && socket.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify({
+        type: 'request_permission',
+        fileName: file.name,
+        fileSize: (file.size / (1024 * 1024)).toFixed(1) + ' MB'
+      }));
+    }
     return;
   }
 
@@ -205,10 +228,13 @@ fileInput.addEventListener('change', async (e) => {
   appendChat('You', `<a href="${url}" target="_blank">📁 ${file.name} (Download)</a>`);
 });
 
-// 📩 ইনকামিং মেসেজ রিসিভ করা
-socket.addEventListener('message', async (event) => {
+// 📩 ইনকামিং মেসেজ প্রসেসিং ফাংশন
+async function handleIncomingMessage(event) {
   try {
     const data = JSON.parse(event.data);
+
+    // Ping-এর পং রেসপন্স আসলে ইগনোর করা
+    if (data.type === 'pong') return;
 
     if (data.system) {
       if (data.type === 'role_assign') {
@@ -256,7 +282,7 @@ socket.addEventListener('message', async (event) => {
   } catch (err) {
     console.error(err);
   }
-});
+}
 
 function renderParsedMessage(sender, parsed) {
   if (parsed.type === 'text') appendChat(sender, parsed.data);
@@ -264,4 +290,4 @@ function renderParsedMessage(sender, parsed) {
   else if (parsed.type === 'audio') appendChat(sender, `<audio controls src="${parsed.data}"></audio>`);
   else if (parsed.type === 'location') appendChat(sender, `<a href="${parsed.data}" target="_blank">📍 Location</a>`);
   else if (parsed.type === 'file_link') appendChat(sender, `<a href="${parsed.data.url}" target="_blank">📁 ${parsed.data.fileName} (Download)</a>`);
-                                          }
+  }
