@@ -1,27 +1,24 @@
-// server.js
-require('dotenv').config(); // 👈 একদম ১ নম্বর লাইনে এটি বসান
+require('dotenv').config();
 
 const WebSocket = require('ws');
 const jwt = require('jsonwebtoken');
 
 const PORT = process.env.PORT || 8080;
-const SECRET_KEY = 'my_super_secret_chat_key';
+const SECRET_KEY = process.env.SECRET_KEY || 'my_super_secret_chat_key';
+const CHAT_PASSWORD = process.env.CHAT_PASSWORD; // Render Environment Variable থেকে নেবে
 
-// 🔑 এখানে আপনার চ্যাটের গোপন পাসওয়ার্ড সেট করুন
-const CHAT_PASSWORD = process.env.CHAT_PASSWORD; 
-
-const wss = new WebSocket.Server({ 
+const wss = new WebSocket.Server({
   port: PORT,
-  maxPayload: 15 * 1024 * 1024 
+  maxPayload: 15 * 1024 * 1024
 });
 
 let connectedUsers = [];
 let messageHistory = [];
 
-const TWO_DAYS_MS = 2 * 24 * 60 * 60 * 1000;
+// ৪৮ ঘণ্টার বেশি পুরোনো মেসেজ হিস্ট্রি রিমুভ করা
 setInterval(() => {
   const now = Date.now();
-  messageHistory = messageHistory.filter(msg => (now - msg.timestamp) < TWO_DAYS_MS);
+  messageHistory = messageHistory.filter(msg => (now - msg.timestamp) < 48 * 60 * 60 * 1000);
 }, 60 * 60 * 1000);
 
 console.log(`Server running on port ${PORT}`);
@@ -31,12 +28,13 @@ wss.on('connection', (ws, req) => {
   const password = urlParams.get('pass');
   const token = urlParams.get('token');
 
-  // 🔒 ১. পাসওয়ার্ড ভুল বা ফাঁকা হলে কানেকশন কেটে রিজেক্ট করবে (Code 4003)
+  // 🔒 ১. পাসওয়ার্ড ভ্যালিডেশন
   if (!password || password !== CHAT_PASSWORD) {
     ws.close(4003, 'Invalid Password');
     return;
   }
 
+  // 🔑 ২. টোকেন ভ্যালিডেশন
   try {
     const decoded = jwt.verify(token, SECRET_KEY);
     ws.username = decoded.username;
@@ -45,69 +43,101 @@ wss.on('connection', (ws, req) => {
     return;
   }
 
-  ws.id = Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+  ws.id = Date.now().toString() + Math.random().toString(36).substr(2, 5);
   
-  // প্রথম প্রবেশকারী ব্যক্তি স্বয়ংক্রিয়ভাবে হোস্ট হবে
-  const isFirstUser = connectedUsers.length === 0;
-  ws.isHost = isFirstUser;
+  // প্রথম ইউজারকে Host বানানো
+  const isHost = connectedUsers.length === 0;
+  ws.isHost = isHost;
   connectedUsers.push(ws);
 
-  // রোল এবং ২ দিনের হিস্ট্রি পাঠানো
-  ws.send(JSON.stringify({ system: true, type: 'role_assign', isHost: ws.isHost }));
+  // হোস্ট রোল পাঠানো
+  ws.send(JSON.stringify({
+    system: true,
+    type: 'role_assign',
+    isHost: isHost
+  }));
 
-  const validHistory = messageHistory.filter(msg => (Date.now() - msg.timestamp) < TWO_DAYS_MS);
-  ws.send(JSON.stringify({ system: true, type: 'history', messages: validHistory.map(m => m.data) }));
+  // আগের মেসেজ হিস্ট্রি পাঠানো
+  if (messageHistory.length > 0) {
+    ws.send(JSON.stringify({
+      system: true,
+      type: 'history',
+      messages: messageHistory
+    }));
+  }
 
+  // 📩 নতুন মেসেজ আসলে তা হ্যান্ডেল করা
   ws.on('message', (message) => {
     try {
-      const data = JSON.parse(message.toString());
+      const msgString = message.toString();
+      
+      // সিস্টেমে ফাইল পারমিশন রিকোয়েস্ট হ্যান্ডলিং
+      if (msgString.startsWith('{')) {
+        const parsedJSON = JSON.parse(msgString);
+        
+        if (parsedJSON.type === 'request_permission') {
+          const hostUser = connectedUsers.find(u => u.isHost);
+          if (hostUser) {
+            hostUser.send(JSON.stringify({
+              system: true,
+              type: 'host_approval_required',
+              requesterId: ws.id,
+              from: ws.username,
+              fileName: parsedJSON.fileName,
+              fileSize: parsedJSON.fileSize
+            }));
+          }
+          return;
+        }
 
-      if (data.type === 'request_permission') {
-        const currentHost = connectedUsers.find(u => u.isHost);
-        if (currentHost && currentHost.readyState === WebSocket.OPEN) {
-          currentHost.send(JSON.stringify({
-            type: 'host_approval_required',
-            from: ws.username,
-            fileName: data.fileName,
-            fileSize: data.fileSize,
-            requesterId: ws.id
+        if (parsedJSON.type === 'permission_response') {
+          const targetUser = connectedUsers.find(u => u.id === parsedJSON.targetUser);
+          if (targetUser) {
+            targetUser.send(JSON.stringify({
+              system: true,
+              type: 'permission_result',
+              allowed: parsedJSON.allowed
+            }));
+          }
+          return;
+        }
+      }
+
+      // সাধারণ চ্যাট মেসেজ হিস্ট্রিতে রাখা
+      messageHistory.push({
+        sender: ws.username,
+        payload: msgString,
+        timestamp: Date.now()
+      });
+
+      // অন্য সকল ইউজারদের মেসেজ ব্রডকাস্ট করা
+      connectedUsers.forEach(client => {
+        if (client !== ws && client.readyState === WebSocket.OPEN) {
+          client.send(JSON.stringify({
+            sender: ws.username,
+            payload: msgString
           }));
         }
-        return;
-      }
+      });
 
-      if (data.type === 'permission_response') {
-        const targetClient = connectedUsers.find(u => u.id === data.targetUser);
-        if (targetClient && targetClient.readyState === WebSocket.OPEN) {
-          targetClient.send(JSON.stringify({
-            type: 'permission_result',
-            allowed: data.allowed
-          }));
-        }
-        return;
-      }
-    } catch (e) {}
-
-    messageHistory.push({
-      timestamp: Date.now(),
-      data: { sender: ws.username, payload: message.toString() }
-    });
-
-    connectedUsers.forEach((client) => {
-      if (client !== ws && client.readyState === WebSocket.OPEN) {
-        client.send(JSON.stringify({
-          sender: ws.username,
-          payload: message.toString()
-        }));
-      }
-    });
+    } catch (err) {
+      console.error('Message Process Error:', err);
+    }
   });
 
+  // 🚪 ইউজার ডিসকানেক্ট হলে
   ws.on('close', () => {
     connectedUsers = connectedUsers.filter(u => u !== ws);
+    
+    // হোস্ট লিভ নিলে নতুন কাউকে হোস্ট বানানো
     if (ws.isHost && connectedUsers.length > 0) {
       connectedUsers[0].isHost = true;
-      connectedUsers[0].send(JSON.stringify({ system: true, type: 'role_assign', isHost: true }));
+      connectedUsers[0].send(JSON.stringify({
+        system: true,
+        type: 'role_assign',
+        isHost: true
+      }));
     }
   });
 });
+    
