@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Private End-to-End Encrypted Chatroom</title>
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+
+    body {
+      background: #090d16;
+      color: #f1f5f9;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 10px;
+    }
+
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(4, 7, 13, 0.85);
+      backdrop-filter: blur(10px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      padding: 16px;
+    }
+
+    .modal-card {
+      background: #131b2e;
+      border: 1px solid #1e293b;
+      width: 100%;
+      max-width: 400px;
+      border-radius: 20px;
+      padding: 28px 24px;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
+    }
+
+    .icon-badge {
+      width: 64px;
+      height: 64px;
+      border-radius: 50%;
+      background: rgba(99, 102, 241, 0.15);
+      color: #818cf8;
+      border: 1px solid rgba(99, 102, 241, 0.3);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 12px;
+      font-size: 26px;
+    }
+
+    .form-group {
+      margin-bottom: 18px;
+    }
+
+    .form-group label {
+      display: block;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      color: #94a3b8;
+      margin-bottom: 6px;
+    }
+
+    .input-wrapper {
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+
+    .input-wrapper i {
+      position: absolute;
+      left: 14px;
+      color: #64748b;
+      font-size: 14px;
+    }
+
+    .input-control {
+      width: 100%;
+      background: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 12px;
+      padding: 12px 14px 12px 40px;
+      font-size: 14px;
+      color: #fff;
+      outline: none;
+    }
+
+    .input-control:focus {
+      border-color: #6366f1;
+    }
+
+    .btn-primary {
+      width: 100%;
+      background: #4f46e5;
+      color: #fff;
+      border: none;
+      border-radius: 12px;
+      padding: 12px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      box-shadow: 0 4px 15px rgba(79, 70, 229, 0.3);
+    }
+
+    .btn-primary:hover {
+      background: #4338ca;
+    }
+
+    .status-msg {
+      background: rgba(245, 158, 11, 0.1);
+      border: 1px solid rgba(245, 158, 11, 0.2);
+      color: #fbbf24;
+      font-size: 12px;
+      padding: 10px;
+      border-radius: 10px;
+      text-align: center;
+      margin-bottom: 16px;
+    }
+
+    .chat-container {
+      width: 100%;
+      max-width: 850px;
+      height: 92vh;
+      background: #111827;
+      border: 1px solid #1f2937;
+      border-radius: 20px;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
+    }
+
+    .chat-header {
+      background: rgba(17, 24, 39, 0.8);
+      border-bottom: 1px solid #1f2937;
+      padding: 14px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .header-user-info {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .avatar-icon {
+      width: 42px;
+      height: 42px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #6366f1, #a855f7);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      color: #fff;
+      position: relative;
+    }
+
+    .status-dot {
+      position: absolute;
+      bottom: 0;
+      right: 0;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #f59e0b;
+      border: 2px solid #111827;
+    }
+
+    .status-dot.online { background: #10b981; }
+    .status-dot.offline { background: #ef4444; }
+
+    .host-badge {
+      font-size: 10px;
+      background: rgba(16, 185, 129, 0.15);
+      color: #34d399;
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-weight: 600;
+    }
+
+    .chat-window {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px;
+      background: rgba(15, 23, 42, 0.4);
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .system-banner {
+      text-align: center;
+      margin: 8px 0;
+    }
+
+    .system-banner span {
+      background: rgba(30, 41, 59, 0.8);
+      border: 1px solid rgba(51, 65, 85, 0.5);
+      color: #94a3b8;
+      font-size: 11px;
+      padding: 5px 12px;
+      border-radius: 20px;
+    }
+
+    .msg-row {
+      display: flex;
+      flex-direction: column;
+      margin-bottom: 4px;
+    }
+
+    .msg-row.self { align-items: flex-end; }
+    .msg-row.other { align-items: flex-start; }
+
+    .msg-sender {
+      font-size: 11px;
+      color: #64748b;
+      margin-bottom: 3px;
+    }
+
+    .msg-bubble {
+      max-width: 80%;
+      padding: 10px 14px;
+      border-radius: 16px;
+      font-size: 14px;
+      line-height: 1.5;
+      word-wrap: break-word;
+    }
+
+    .msg-row.self .msg-bubble {
+      background: #4f46e5;
+      color: #fff;
+      border-top-right-radius: 2px;
+    }
+
+    .msg-row.other .msg-bubble {
+      background: #1f2937;
+      color: #f3f4f6;
+      border-top-left-radius: 2px;
+    }
+
+    .chat-footer {
+      background: rgba(17, 24, 39, 0.95);
+      border-top: 1px solid #1f2937;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .action-bar {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .btn-action {
+      background: #1f2937;
+      border: 1px solid #374151;
+      color: #9ca3af;
+      padding: 6px 12px;
+      border-radius: 8px;
+      font-size: 12px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .input-bar {
+      display: flex;
+      gap: 8px;
+    }
+
+    .input-bar input {
+      flex: 1;
+      background: #0b0f17;
+      border: 1px solid #374151;
+      border-radius: 12px;
+      padding: 10px 16px;
+      color: #fff;
+      font-size: 14px;
+      outline: none;
+    }
+
+    .btn-send {
+      background: #4f46e5;
+      color: white;
+      border: none;
+      border-radius: 12px;
+      padding: 0 20px;
+      cursor: pointer;
+      font-size: 16px;
+    }
+
+    .hidden { display: none !important; }
+    .chat-img { max-width: 240px; border-radius: 8px; margin-top: 4px; }
+    .chat-link { color: #38bdf8; text-decoration: none; font-size: 13px; }
+  </style>
+</head>
+<body>
+
+  <!-- LOGIN MODAL -->
+  <div id="loginModal" class="modal-overlay">
+    <div class="modal-card">
+      <div style="text-align: center;">
+        <div class="icon-badge"><i class="fa-solid fa-user-shield"></i></div>
+        <h2 style="font-size: 22px; font-weight: 700; color: #fff; margin-bottom: 4px;">প্রাইভেট চ্যাটরুম</h2>
+        <p style="font-size: 12px; color: #94a3b8; margin-bottom: 20px;">সুরক্ষিত চ্যাটে যুক্ত হতে ইউজারনেম ও পাসওয়ার্ড দিন</p>
+      </div>
+
+      <form id="loginForm" onsubmit="event.preventDefault(); startConnection();">
+        <div class="form-group">
+          <label>আপনার নাম (USERNAME)</label>
+          <div class="input-wrapper">
+            <i class="fa-solid fa-user"></i>
+            <input type="text" id="usernameInput" class="input-control" required placeholder="উদাহরণ: Anondo">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>রুম পাসওয়ার্ড (ROOM SECRET)</label>
+          <div class="input-wrapper">
+            <i class="fa-solid fa-key"></i>
+            <input type="password" id="passwordInput" class="input-control" required placeholder="••••••••">
+          </div>
+        </div>
+
+        <div id="loginStatusMsg" class="status-msg hidden">
+          <i class="fa-solid fa-spinner fa-spin"></i> পাসওয়ার্ড ভ্যালিডেট করা হচ্ছে...
+        </div>
+
+        <button type="submit" id="loginBtn" class="btn-primary">
+          <span id="loginBtnText">চ্যাটরুমে প্রবেশ করুন</span>
+          <i id="loginBtnIcon" class="fa-solid fa-arrow-right"></i>
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- CHAT CONTAINER -->
+  <div class="chat-container">
+    <header class="chat-header">
+      <div class="header-user-info">
+        <div class="avatar-icon">
+          <i class="fa-solid fa-lock"></i>
+          <span id="statusIndicator" class="status-dot"></span>
+        </div>
+        <div>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <h1 style="font-size: 16px; font-weight: 700;">সিকিউর চ্যাটরুম</h1>
+            <span id="hostBadge" class="host-badge hidden"><i class="fa-solid fa-crown"></i> HOST</span>
+          </div>
+          <p id="connectionText" style="font-size: 11px; color: #f59e0b;">সার্ভারে কানেক্ট করা হচ্ছে...</p>
+        </div>
+      </div>
+      <button onclick="leaveChat()" style="background: none; border: none; color: #94a3b8; font-size: 18px; cursor: pointer;">
+        <i class="fa-solid fa-power-off"></i>
+      </button>
+    </header>
+
+    <div id="chatWindow" class="chat-window">
+      <div class="system-banner">
+        <span>🔒 এন্ড-টু-এন্ড এনক্রিপশন সক্রিয় রয়েছে (AES-GCM 256-bit)</span>
+      </div>
+    </div>
+
+    <footer class="chat-footer">
+      <div class="action-bar">
+        <input type="file" id="imageInput" accept="image/*" class="hidden" onchange="handleImageUpload(event)">
+        <input type="file" id="fileInput" class="hidden" onchange="handleFileUpload(event)">
+
+        <button onclick="document.getElementById('imageInput').click()" class="btn-action">
+          <i class="fa-regular fa-image" style="color: #818cf8;"></i> <span>ছবি</span>
+        </button>
+        <button onclick="document.getElementById('fileInput').click()" class="btn-action">
+          <i class="fa-solid fa-paperclip" style="color: #38bdf8;"></i> <span>ফাইল</span>
+        </button>
+        <button id="voiceBtn" onclick="toggleVoiceRecord()" class="btn-action">
+          <i id="micIcon" class="fa-solid fa-microphone" style="color: #fb7185;"></i> <span id="voiceText">ভয়েস</span>
+        </button>
+        <button onclick="sendLocation()" class="btn-action">
+          <i class="fa-solid fa-location-dot" style="color: #34d399;"></i> <span>লোকেশন</span>
+        </button>
+      </div>
+
+      <div class="input-bar">
+        <input type="text" id="messageInput" placeholder="এখানে মেসেজ লিখুন..." onkeydown="if(event.key==='Enter') sendMessage()">
+        <button onclick="sendMessage()" class="btn-send"><i class="fa-solid fa-paper-plane"></i></button>
+      </div>
+    </footer>
+  </div>
+
+  <!-- ALERT MODAL -->
+  <div id="customModal" class="modal-overlay hidden">
+    <div class="modal-card" style="max-width: 360px; padding: 20px;">
+      <h3 id="modalTitle" style="font-size: 16px; font-weight: 700; color: #fff; margin-bottom: 8px;">বিজ্ঞপ্তি</h3>
+      <p id="modalMessage" style="font-size: 13px; color: #cbd5e1; margin-bottom: 20px;">কোন বার্তা নেই।</p>
+      <div id="modalButtons" style="display: flex; justify-content: flex-end; gap: 8px;">
+        <button onclick="closeModal()" class="btn-primary" style="padding: 8px 16px; width: auto; font-size: 12px;">ঠিক আছে</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- SCRIPT IMPORT -->
+  <script src="script.js"></script>
+</body>
+</html>
