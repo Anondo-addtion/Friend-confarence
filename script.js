@@ -181,20 +181,25 @@ async function startConnection() {
     connectionText.innerText = "ডিসকানেক্ট হয়েছে";
     connectionText.style.color = "#f87171";
 
-    if (e.reason.startsWith('WRONG_PASSWORD')) {
-      loginModal.classList.remove('hidden');
-      const remaining = e.reason.split(':')[1] || 0;
-      showAlert(`❌ ভুল পাসওয়ার্ড! আপনার আর মাত্র ${remaining} বার চেষ্টা করার সুযোগ আছে।`);
-    } else if (e.reason === 'IP_BLOCKED' || e.reason.includes('IP Blocked')) {
-      loginModal.classList.remove('hidden');
-      showAlert("🚨 ৩ বার ভুল পাসওয়ার্ড দেওয়ার কারনে আপনার IP টি স্থায়ীভাবে ব্লক করা হয়েছে!");
-    } else if (e.code === 4003) {
-      loginModal.classList.remove('hidden');
-      showAlert("❌ ভুল পাসওয়ার্ড দিয়েছেন!");
-    } else {
-      loginStatusMsg.classList.add('hidden');
-    }
-  });
+    // server.js এর ৩ বার ভুল পাসওয়ার্ড চেক করার স্থানে এই কোডটি আপডেট করতে পারেন:
+
+if (failedAttempts[clientIP] >= 3) {
+  blockedIPs.add(clientIP);
+  console.log(`IP Blocked: ${clientIP}`);
+  ws.close(4003, 'IP_BLOCKED');
+
+  // ⏳ ৬০ মিনিট (1800000 ms) পর নিজে থেকেই IP আনব্লক হয়ে যাবে
+  setTimeout(() => {
+    blockedIPs.delete(clientIP);
+    failedAttempts[clientIP] = 0;
+    console.log(`IP Unblocked automatically: ${clientIP}`);
+  }, 60 * 60 * 1000); 
+
+} else {
+  const remaining = 3 - failedAttempts[clientIP];
+  ws.close(4003, `WRONG_PASSWORD:${remaining}`);
+}
+    
 
   socket.addEventListener('error', () => {
     stopPingPong();
