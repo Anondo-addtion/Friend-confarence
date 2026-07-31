@@ -21,13 +21,26 @@ console.log(`Server running on port ${PORT}`);
 
 wss.on('connection', (ws, req) => {
   const clientIP = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+  // server.js এর ৩ বার ভুল পাসওয়ার্ড চেক করার স্থানে এই কোডটি আপডেট করতে পারেন:
 
-  // ১. IP ইতিমধ্যেই ব্লকড কি না চেক
-  if (blockedIPs.has(clientIP)) {
-    ws.close(4003, 'IP_BLOCKED');
-    return;
-  }
+if (failedAttempts[clientIP] >= 3) {
+  blockedIPs.add(clientIP);
+  console.log(`IP Blocked: ${clientIP}`);
+  ws.close(4003, 'IP_BLOCKED');
 
+  // ⏳ ৩০ মিনিট (1800000 ms) পর নিজে থেকেই IP আনব্লক হয়ে যাবে
+  setTimeout(() => {
+    blockedIPs.delete(clientIP);
+    failedAttempts[clientIP] = 0;
+    console.log(`IP Unblocked automatically: ${clientIP}`);
+  }, 30 * 60 * 1000); 
+
+} else {
+  const remaining = 3 - failedAttempts[clientIP];
+  ws.close(4003, `WRONG_PASSWORD:${remaining}`);
+}
+  
+  
   const urlParams = new URLSearchParams(req.url.replace('/?', ''));
   const password = urlParams.get('pass');
   const token = urlParams.get('token');
