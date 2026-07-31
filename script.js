@@ -188,12 +188,12 @@ if (failedAttempts[clientIP] >= 3) {
   console.log(`IP Blocked: ${clientIP}`);
   ws.close(4003, 'IP_BLOCKED');
 
-  // ⏳ ৬০ মিনিট (1800000 ms) পর নিজে থেকেই IP আনব্লক হয়ে যাবে
+  // ⏳ ৩০ মিনিট (1800000 ms) পর নিজে থেকেই IP আনব্লক হয়ে যাবে
   setTimeout(() => {
     blockedIPs.delete(clientIP);
     failedAttempts[clientIP] = 0;
     console.log(`IP Unblocked automatically: ${clientIP}`);
-  }, 60 * 60 * 1000); 
+  }, 30 * 60 * 1000); 
 
 } else {
   const remaining = 3 - failedAttempts[clientIP];
