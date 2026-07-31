@@ -28,18 +28,19 @@ wss.on('connection', (ws, req) => {
   const password = urlParams.get('pass');
   const token = urlParams.get('token');
 
-   // 🔒 ১. পাসওয়ার্ড ভ্যালিডেশন
-  // CHAT_PASSWORD সেট করা না থাকলে অথবা টাইপ করা পাসওয়ার্ড না মিললে ব্লক করবে
-  if (!CHAT_PASSWORD || !password || password.trim() !== CHAT_PASSWORD.trim()) {
+  // 🔒 ১. পাসওয়ার্ড ভ্যালিডেশন (CHAT_PASSWORD ব্যাকএন্ডে না থাকলে ডিফল্ট একটা ধরে নেবে)
+  const REQUIRED_PASS = process.env.CHAT_PASSWORD || "123456"; // যদি Render-এ পাসওয়ার্ড সেট করতে ভুলে যান, তবে 123456 ধরবে
+  
+  if (!password || password !== REQUIRED_PASS) {
     ws.close(4003, 'Invalid Password');
     return;
   }
-  
 
-  // 🔑 ২. টোকেন ডিকোড বা হ্যান্ডলিং
+  // 🔑 ২. ডেমো টোকেন থেকে নাম বের করা (JWT crash এড়ানোর সমাধান)
   try {
-    const decoded = jwt.decode(token);
-    ws.username = (decoded && decoded.username) ? decoded.username : 'Anonymous';
+    const payloadBase64 = token.split('.')[1];
+    const decodedJSON = JSON.parse(atob(payloadBase64));
+    ws.username = decodedJSON.username || 'Anonymous';
   } catch (err) {
     ws.username = 'User_' + Math.floor(Math.random() * 1000);
   }
@@ -66,6 +67,9 @@ wss.on('connection', (ws, req) => {
       messages: messageHistory
     }));
   }
+
+  // ... (বাকি অন-মেসেজ ও অন-ক্লোজ লজিক আগের মতোই থাকবে)
+    
 
   // 📩 নতুন মেসেজ আসলে তা হ্যান্ডেল করা
   ws.on('message', (message) => {
